@@ -57,7 +57,9 @@
 /* USER CODE BEGIN 0 */
 
 /* USER CODE END 0 */
-/**
+
+void HAL_TIM_MspPostInit(TIM_HandleTypeDef *htim);
+                    /**
   * Initializes the Global MSP.
   */
 void HAL_MspInit(void)
@@ -77,157 +79,93 @@ void HAL_MspInit(void)
 }
 
 /**
-* @brief LCD MSP Initialization
+* @brief TIM_Base MSP Initialization
 * This function configures the hardware resources used in this example
-* @param hlcd: LCD handle pointer
+* @param htim_base: TIM_Base handle pointer
 * @retval None
 */
-void HAL_LCD_MspInit(LCD_HandleTypeDef* hlcd)
+void HAL_TIM_Base_MspInit(TIM_HandleTypeDef* htim_base)
 {
-  GPIO_InitTypeDef GPIO_InitStruct = {0};
-  RCC_PeriphCLKInitTypeDef PeriphClkInit = {0};
-  if(hlcd->Instance==LCD)
+  if(htim_base->Instance==TIM1)
   {
-  /* USER CODE BEGIN LCD_MspInit 0 */
+  /* USER CODE BEGIN TIM1_MspInit 0 */
 
-  /* USER CODE END LCD_MspInit 0 */
-
-  /** Initializes the peripherals clock
-  */
-    PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_RTC;
-    PeriphClkInit.RTCClockSelection = RCC_RTCCLKSOURCE_LSI;
-    if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK)
-    {
-      Error_Handler();
-    }
-
+  /* USER CODE END TIM1_MspInit 0 */
     /* Peripheral clock enable */
-    __HAL_RCC_LCD_CLK_ENABLE();
+    __HAL_RCC_TIM1_CLK_ENABLE();
+  /* USER CODE BEGIN TIM1_MspInit 1 */
 
-    __HAL_RCC_GPIOC_CLK_ENABLE();
-    __HAL_RCC_GPIOA_CLK_ENABLE();
-    __HAL_RCC_GPIOB_CLK_ENABLE();
-    /**LCD GPIO Configuration
-    PC0     ------> LCD_SEG18
-    PC1     ------> LCD_SEG19
-    PC2     ------> LCD_SEG20
-    PC3     ------> LCD_VLCD
-    PA1     ------> LCD_SEG0
-    PA2     ------> LCD_SEG1
-    PA3     ------> LCD_SEG2
-    PA6     ------> LCD_SEG3
-    PA7     ------> LCD_SEG4
-    PC4     ------> LCD_SEG22
-    PC5     ------> LCD_SEG23
-    PB0     ------> LCD_SEG5
-    PB1     ------> LCD_SEG6
-    PB10     ------> LCD_SEG10
-    PB11     ------> LCD_SEG11
-    PB12     ------> LCD_SEG12
-    PB13     ------> LCD_SEG13
-    PB14     ------> LCD_SEG14
-    PB15     ------> LCD_SEG15
-    PA8     ------> LCD_COM0
-    PA9     ------> LCD_COM1
-    PA15 (JTDI)     ------> LCD_SEG17
-    PB3 (JTDO-TRACESWO)     ------> LCD_SEG7
-    PB4 (NJTRST)     ------> LCD_SEG8
-    PB5     ------> LCD_SEG9
-    PB7     ------> LCD_SEG21
-    PB8     ------> LCD_SEG16
-    */
-    GPIO_InitStruct.Pin = GPIO_PIN_0|GPIO_PIN_1|GPIO_PIN_2|GPIO_PIN_3
-                          |GPIO_PIN_4|GPIO_PIN_5;
-    GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-    GPIO_InitStruct.Pull = GPIO_NOPULL;
-    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-    GPIO_InitStruct.Alternate = GPIO_AF11_LCD;
-    HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+  /* USER CODE END TIM1_MspInit 1 */
+  }
+  else if(htim_base->Instance==TIM2)
+  {
+  /* USER CODE BEGIN TIM2_MspInit 0 */
 
-    GPIO_InitStruct.Pin = GPIO_PIN_1|GPIO_PIN_2|GPIO_PIN_3|GPIO_PIN_6
-                          |GPIO_PIN_7|GPIO_PIN_8|GPIO_PIN_9|GPIO_PIN_15;
-    GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-    GPIO_InitStruct.Pull = GPIO_NOPULL;
-    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-    GPIO_InitStruct.Alternate = GPIO_AF11_LCD;
-    HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+  /* USER CODE END TIM2_MspInit 0 */
+    /* Peripheral clock enable */
+    __HAL_RCC_TIM2_CLK_ENABLE();
+  /* USER CODE BEGIN TIM2_MspInit 1 */
 
-    GPIO_InitStruct.Pin = GPIO_PIN_0|GPIO_PIN_1|GPIO_PIN_10|GPIO_PIN_11
-                          |GPIO_PIN_12|GPIO_PIN_13|GPIO_PIN_14|GPIO_PIN_15
-                          |GPIO_PIN_3|GPIO_PIN_4|GPIO_PIN_5|GPIO_PIN_7
-                          |GPIO_PIN_8;
-    GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-    GPIO_InitStruct.Pull = GPIO_NOPULL;
-    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-    GPIO_InitStruct.Alternate = GPIO_AF11_LCD;
-    HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
-
-  /* USER CODE BEGIN LCD_MspInit 1 */
-
-  /* USER CODE END LCD_MspInit 1 */
+  /* USER CODE END TIM2_MspInit 1 */
   }
 
 }
 
+void HAL_TIM_MspPostInit(TIM_HandleTypeDef* htim)
+{
+  GPIO_InitTypeDef GPIO_InitStruct = {0};
+  if(htim->Instance==TIM2)
+  {
+  /* USER CODE BEGIN TIM2_MspPostInit 0 */
+
+  /* USER CODE END TIM2_MspPostInit 0 */
+
+    __HAL_RCC_GPIOA_CLK_ENABLE();
+    /**TIM2 GPIO Configuration
+    PA5     ------> TIM2_CH1
+    */
+    GPIO_InitStruct.Pin = GPIO_PIN_5;
+    GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
+    GPIO_InitStruct.Pull = GPIO_NOPULL;
+    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+    GPIO_InitStruct.Alternate = GPIO_AF1_TIM2;
+    HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+  /* USER CODE BEGIN TIM2_MspPostInit 1 */
+
+  /* USER CODE END TIM2_MspPostInit 1 */
+  }
+
+}
 /**
-* @brief LCD MSP De-Initialization
+* @brief TIM_Base MSP De-Initialization
 * This function freeze the hardware resources used in this example
-* @param hlcd: LCD handle pointer
+* @param htim_base: TIM_Base handle pointer
 * @retval None
 */
-void HAL_LCD_MspDeInit(LCD_HandleTypeDef* hlcd)
+void HAL_TIM_Base_MspDeInit(TIM_HandleTypeDef* htim_base)
 {
-  if(hlcd->Instance==LCD)
+  if(htim_base->Instance==TIM1)
   {
-  /* USER CODE BEGIN LCD_MspDeInit 0 */
+  /* USER CODE BEGIN TIM1_MspDeInit 0 */
 
-  /* USER CODE END LCD_MspDeInit 0 */
+  /* USER CODE END TIM1_MspDeInit 0 */
     /* Peripheral clock disable */
-    __HAL_RCC_LCD_CLK_DISABLE();
+    __HAL_RCC_TIM1_CLK_DISABLE();
+  /* USER CODE BEGIN TIM1_MspDeInit 1 */
 
-    /**LCD GPIO Configuration
-    PC0     ------> LCD_SEG18
-    PC1     ------> LCD_SEG19
-    PC2     ------> LCD_SEG20
-    PC3     ------> LCD_VLCD
-    PA1     ------> LCD_SEG0
-    PA2     ------> LCD_SEG1
-    PA3     ------> LCD_SEG2
-    PA6     ------> LCD_SEG3
-    PA7     ------> LCD_SEG4
-    PC4     ------> LCD_SEG22
-    PC5     ------> LCD_SEG23
-    PB0     ------> LCD_SEG5
-    PB1     ------> LCD_SEG6
-    PB10     ------> LCD_SEG10
-    PB11     ------> LCD_SEG11
-    PB12     ------> LCD_SEG12
-    PB13     ------> LCD_SEG13
-    PB14     ------> LCD_SEG14
-    PB15     ------> LCD_SEG15
-    PA8     ------> LCD_COM0
-    PA9     ------> LCD_COM1
-    PA15 (JTDI)     ------> LCD_SEG17
-    PB3 (JTDO-TRACESWO)     ------> LCD_SEG7
-    PB4 (NJTRST)     ------> LCD_SEG8
-    PB5     ------> LCD_SEG9
-    PB7     ------> LCD_SEG21
-    PB8     ------> LCD_SEG16
-    */
-    HAL_GPIO_DeInit(GPIOC, GPIO_PIN_0|GPIO_PIN_1|GPIO_PIN_2|GPIO_PIN_3
-                          |GPIO_PIN_4|GPIO_PIN_5);
+  /* USER CODE END TIM1_MspDeInit 1 */
+  }
+  else if(htim_base->Instance==TIM2)
+  {
+  /* USER CODE BEGIN TIM2_MspDeInit 0 */
 
-    HAL_GPIO_DeInit(GPIOA, GPIO_PIN_1|GPIO_PIN_2|GPIO_PIN_3|GPIO_PIN_6
-                          |GPIO_PIN_7|GPIO_PIN_8|GPIO_PIN_9|GPIO_PIN_15);
+  /* USER CODE END TIM2_MspDeInit 0 */
+    /* Peripheral clock disable */
+    __HAL_RCC_TIM2_CLK_DISABLE();
+  /* USER CODE BEGIN TIM2_MspDeInit 1 */
 
-    HAL_GPIO_DeInit(GPIOB, GPIO_PIN_0|GPIO_PIN_1|GPIO_PIN_10|GPIO_PIN_11
-                          |GPIO_PIN_12|GPIO_PIN_13|GPIO_PIN_14|GPIO_PIN_15
-                          |GPIO_PIN_3|GPIO_PIN_4|GPIO_PIN_5|GPIO_PIN_7
-                          |GPIO_PIN_8);
-
-  /* USER CODE BEGIN LCD_MspDeInit 1 */
-
-  /* USER CODE END LCD_MspDeInit 1 */
+  /* USER CODE END TIM2_MspDeInit 1 */
   }
 
 }

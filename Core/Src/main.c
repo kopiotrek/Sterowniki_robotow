@@ -17,62 +17,8 @@
   */
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
-#include "stm32l4xx.h"
-#include <stdbool.h>
-#include <stdint.h>
+#include "main.h"
 
-// Define the GPIO port and pin for the DHT11 sensor
-#define DHT11_PORT GPIOA
-#define DHT11_PIN GPIO_PIN_0
-
-void delay_us(uint32_t us)
-{
-    // Wait for the specified number of microseconds
-    uint32_t ticks = us * (SystemCoreClock / 1000000) / 3;
-    while (ticks--);
-}
-
-bool readDHT11(float* temperature, float* humidity)
-{
-    uint8_t data[5] = {0, 0, 0, 0, 0};
-    uint8_t crc = 0;
-
-    // Reset the DHT11 sensor
-    HAL_GPIO_WritePin(DHT11_PORT, DHT11_PIN, GPIO_PIN_RESET);
-    delay_us(20000);
-
-    // Request data from the DHT11 sensor
-    HAL_GPIO_WritePin(DHT11_PORT, DHT11_PIN, GPIO_PIN_SET);
-    delay_us(40);
-    HAL_GPIO_WritePin(DHT11_PORT, DHT11_PIN, GPIO_PIN_RESET);
-
-    // Wait for the DHT11 sensor to respond
-    HAL_Delay(20);
-
-    // Read the response from the DHT11 sensor
-    for (int i = 0; i < 5; i++) {
-        for (int j = 0; j < 8; j++) {
-            while (!HAL_GPIO_ReadPin(DHT11_PORT, DHT11_PIN));
-            delay_us(30);
-            if (HAL_GPIO_ReadPin(DHT11_PORT, DHT11_PIN)) {
-                data[i] |= 1 << (7 - j);
-            }
-//            while (HAL_GPIO_ReadPin(DHT11_PORT, DHT11_PIN));
-        }
-    }
-
-    // Verify the checksum
-    crc = data[0] + data[1] + data[2] + data[3];
-    if (crc != data[4]) {
-        return false;
-    }
-
-    // Calculate the temperature and humidity values
-    *humidity = data[0] + data[1] * 0.1f;
-    *temperature = data[2] + data[3] * 0.1f;
-
-    return true;
-}
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 
@@ -94,7 +40,8 @@ bool readDHT11(float* temperature, float* humidity)
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
-LCD_HandleTypeDef hlcd;
+TIM_HandleTypeDef htim1;
+TIM_HandleTypeDef htim2;
 
 UART_HandleTypeDef huart2;
 
@@ -105,15 +52,129 @@ UART_HandleTypeDef huart2;
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
-static void MX_LCD_Init(void);
 static void MX_USART2_UART_Init(void);
+static void MX_TIM1_Init(void);
+static void MX_TIM2_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+// Define the GPIO port and pin for the DHT11 sensor
+#define DHT11_PORT GPIOA
+#define DHT11_PIN GPIO_PIN_0
+#define DHT11_TIMEOUT 0xFFFF
+#define DHT11_ERROR -1
+#define DHT11_OK 1
 
+void delay_us (uint16_t us)
+{
+	__HAL_TIM_SET_COUNTER(&htim1,0);  // set the counter value a 0
+	while (__HAL_TIM_GET_COUNTER(&htim1) < us);  // wait for the counter to reach the us input in the parameter
+}
+
+void resetTIM1(){
+	__HAL_TIM_SET_COUNTER(&htim1,0);  // set the counter value a 0
+}
+
+uint16_t getTIM1()
+{
+	return __HAL_TIM_GET_COUNTER(&htim1);
+}
+
+
+
+
+HAL_StatusTypeDef wire_reset(void)
+{
+  int rc;
+
+  HAL_GPIO_WritePin(DHT11_PORT, DHT11_PIN, GPIO_PIN_RESET);
+  HAL_Delay(18);
+  HAL_GPIO_WritePin(DHT11_PORT, DHT11_PIN, GPIO_PIN_SET);
+  HAL_Delay(18);
+  rc = HAL_GPIO_ReadPin(DHT11_PORT, DHT11_PIN);
+  delay_us(410);
+
+  if (rc == 0)
+    return HAL_OK;
+  else
+    return HAL_ERROR;
+}
+
+uint8_t readDHT11(float* temperature, float* humidity)
+{
+    uint8_t data[5] = {0, 0, 0, 0, 0};
+    uint8_t crc = 0;
+
+
+    // Request data from the DHT11 sensor
+    HAL_GPIO_WritePin(DHT11_PORT, DHT11_PIN, GPIO_PIN_RESET);
+    HAL_Delay(18); // correct: 18 ms
+    HAL_GPIO_WritePin(DHT11_PORT, DHT11_PIN, GPIO_PIN_SET);
+
+    // Wait for the DHT11 sensor to respond
+    resetTIM1();
+    while (HAL_GPIO_ReadPin(DHT11_PORT, DHT11_PIN))
+    {
+        if (getTIM1() > DHT11_TIMEOUT) return DHT11_TIMEOUT;
+    }
+    resetTIM1();
+    while (!HAL_GPIO_ReadPin(DHT11_PORT, DHT11_PIN))
+    {
+    	if (getTIM1() > DHT11_TIMEOUT) return DHT11_TIMEOUT;
+    }
+
+    for (int i = 0; i < 5; i++)
+    {
+        for (int j = 0; j < 8; j++)
+        {
+            // Wait for a low signal before reading the bit
+        	resetTIM1();
+            while (HAL_GPIO_ReadPin(DHT11_PORT, DHT11_PIN))
+            {
+            	if (getTIM1() > 100)
+            		return DHT11_TIMEOUT;
+            }
+
+            // Wait for a high signal to finish reading the bit
+            while (!HAL_GPIO_ReadPin(DHT11_PORT, DHT11_PIN))
+            {
+            	if (getTIM1() > 75)
+            		return DHT11_TIMEOUT;
+            }
+
+            resetTIM1();
+            // Wait for a low signal to finish reading the bit
+            while (HAL_GPIO_ReadPin(DHT11_PORT, DHT11_PIN))
+            {
+            	if (getTIM1() > 100)
+            		return DHT11_TIMEOUT;
+            }
+
+            // Read the bit
+            if (getTIM1() > 51)
+            {
+                data[i] |= 1 << (7 - j);
+            }
+//            else if (getTIM1() < 100){
+//            	data[i] |= 0 << (7 - j);
+//            }
+        }
+    }
+
+    // Verify the checksum
+    crc = data[0] + data[1] + data[2] + data[3];
+
+    if (crc != data[4]) return DHT11_ERROR;
+
+    // Calculate the temperature and humidity values
+    *humidity = data[0] + data[1] * 0.1f;
+    *temperature = data[2] + (data[3] & 0x0f)*0.1;
+
+    return DHT11_OK;
+}
 /* USER CODE END 0 */
 
 /**
@@ -123,7 +184,6 @@ static void MX_USART2_UART_Init(void);
 int main(void)
 {
   /* USER CODE BEGIN 1 */
-
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -144,42 +204,66 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
-  MX_LCD_Init();
   MX_USART2_UART_Init();
+  MX_TIM1_Init();
+  MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
 
   uint8_t Test[] = "Hello World !!!\r\n"; //Data to send
   HAL_UART_Transmit(&huart2,Test,sizeof(Test),10);// Sending in normal mode
+  HAL_TIM_Base_Start(&htim1);
 //  HAL_Delay(1000);
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
+  while (1)
+  {
+	  float temperature, humidity;
+  int temperature_int, humidity_int;
 
-      float temperature, humidity;
-      int temperature_int, humidity_int;
+  // Initialize the GPIO port for communication with the DHT11 sensor
+  // ...
 
-      // Initialize the GPIO port for communication with the DHT11 sensor
-      // ...
-
-      while (1)
-      {
-    	  temperature=5;
-          // Read data from the DHT11 sensor
-          if (readDHT11(&temperature, &humidity)) {
-              // Do something with the temperature and humidity data
-              // ...
-
-          }
-          char buffer[20];
-          temperature_int=(int)temperature;
-          humidity_int=(int)humidity;
-          sprintf(buffer, "Temperature: %d, Humidity: %d\r\n", temperature_int, humidity_int);
-          HAL_UART_Transmit(&huart2, (uint8_t*)buffer, strlen(buffer), 10);
-          // Wait for some time before reading the sensor again
-//          HAL_Delay(2000);
+  while (1)
+  {
+// 	  temperature=5;
+      // Read data from the DHT11 sensor
+	  int read = readDHT11(&temperature, &humidity);
+      char buffer[20];
+      if (read == DHT11_OK) {
+   	   if (temperature>0 && humidity < 2147483600){
+              temperature_int=(int)temperature+9;
+              humidity_int=(int)humidity*100/255;
+              sprintf(buffer, "Temperature: %d, Humidity: %d\r\n", temperature_int, humidity_int);
+              HAL_UART_Transmit(&huart2, (uint8_t*)buffer, strlen(buffer), 10);
+   	   }
+       else{
+     	  sprintf(buffer, "OUT OF RANGE\r\n");
+     	  HAL_UART_Transmit(&huart2, (uint8_t*)buffer, strlen(buffer), 10);
+       }
       }
+      if (read == DHT11_ERROR){
+    	  sprintf(buffer, "DHT11_ERROR\r\n");
+    	  HAL_UART_Transmit(&huart2, (uint8_t*)buffer, strlen(buffer), 10);
+      }
+      if (read == DHT11_TIMEOUT){
+    	  sprintf(buffer, "DHT11_TIMEOUT\r\n");
+    	  HAL_UART_Transmit(&huart2, (uint8_t*)buffer, strlen(buffer), 10);
+      }
+//      else{
+//    	  sprintf(buffer, "DUPA\r\n");
+//    	  HAL_UART_Transmit(&huart2, (uint8_t*)buffer, strlen(buffer), 10);
+//      }
 
+
+      // Wait for some time before reading the sensor again
+          HAL_Delay(1000);
+  }
+    /* USER CODE END WHILE */
+
+    /* USER CODE BEGIN 3 */
+  }
   /* USER CODE END 3 */
 }
 
@@ -202,8 +286,7 @@ void SystemClock_Config(void)
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
   */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_LSI|RCC_OSCILLATORTYPE_MSI;
-  RCC_OscInitStruct.LSIState = RCC_LSI_ON;
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_MSI;
   RCC_OscInitStruct.MSIState = RCC_MSI_ON;
   RCC_OscInitStruct.MSICalibrationValue = 0;
   RCC_OscInitStruct.MSIClockRange = RCC_MSIRANGE_6;
@@ -229,40 +312,108 @@ void SystemClock_Config(void)
 }
 
 /**
-  * @brief LCD Initialization Function
+  * @brief TIM1 Initialization Function
   * @param None
   * @retval None
   */
-static void MX_LCD_Init(void)
+static void MX_TIM1_Init(void)
 {
 
-  /* USER CODE BEGIN LCD_Init 0 */
+  /* USER CODE BEGIN TIM1_Init 0 */
 
-  /* USER CODE END LCD_Init 0 */
+  /* USER CODE END TIM1_Init 0 */
 
-  /* USER CODE BEGIN LCD_Init 1 */
+  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
 
-  /* USER CODE END LCD_Init 1 */
-  hlcd.Instance = LCD;
-  hlcd.Init.Prescaler = LCD_PRESCALER_1;
-  hlcd.Init.Divider = LCD_DIVIDER_16;
-  hlcd.Init.Duty = LCD_DUTY_1_2;
-  hlcd.Init.Bias = LCD_BIAS_1_4;
-  hlcd.Init.VoltageSource = LCD_VOLTAGESOURCE_INTERNAL;
-  hlcd.Init.Contrast = LCD_CONTRASTLEVEL_0;
-  hlcd.Init.DeadTime = LCD_DEADTIME_0;
-  hlcd.Init.PulseOnDuration = LCD_PULSEONDURATION_0;
-  hlcd.Init.MuxSegment = LCD_MUXSEGMENT_DISABLE;
-  hlcd.Init.BlinkMode = LCD_BLINKMODE_OFF;
-  hlcd.Init.BlinkFrequency = LCD_BLINKFREQUENCY_DIV8;
-  hlcd.Init.HighDrive = LCD_HIGHDRIVE_DISABLE;
-  if (HAL_LCD_Init(&hlcd) != HAL_OK)
+  /* USER CODE BEGIN TIM1_Init 1 */
+
+  /* USER CODE END TIM1_Init 1 */
+  htim1.Instance = TIM1;
+  htim1.Init.Prescaler = 4;
+  htim1.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim1.Init.Period = 0xffff-1;
+  htim1.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim1.Init.RepetitionCounter = 0;
+  htim1.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim1) != HAL_OK)
   {
     Error_Handler();
   }
-  /* USER CODE BEGIN LCD_Init 2 */
+  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+  if (HAL_TIM_ConfigClockSource(&htim1, &sClockSourceConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterOutputTrigger2 = TIM_TRGO2_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim1, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM1_Init 2 */
 
-  /* USER CODE END LCD_Init 2 */
+  /* USER CODE END TIM1_Init 2 */
+
+}
+
+/**
+  * @brief TIM2 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM2_Init(void)
+{
+
+  /* USER CODE BEGIN TIM2_Init 0 */
+
+  /* USER CODE END TIM2_Init 0 */
+
+  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+  TIM_OC_InitTypeDef sConfigOC = {0};
+
+  /* USER CODE BEGIN TIM2_Init 1 */
+
+  /* USER CODE END TIM2_Init 1 */
+  htim2.Instance = TIM2;
+  htim2.Init.Prescaler = 0;
+  htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim2.Init.Period = 65535;
+  htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
+  if (HAL_TIM_Base_Init(&htim2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+  if (HAL_TIM_ConfigClockSource(&htim2, &sClockSourceConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_TIM_PWM_Init(&htim2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim2, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sConfigOC.OCMode = TIM_OCMODE_PWM1;
+  sConfigOC.Pulse = 0;
+  sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
+  sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
+  if (HAL_TIM_PWM_ConfigChannel(&htim2, &sConfigOC, TIM_CHANNEL_1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM2_Init 2 */
+
+  /* USER CODE END TIM2_Init 2 */
+  HAL_TIM_MspPostInit(&htim2);
 
 }
 
@@ -313,16 +464,19 @@ static void MX_GPIO_Init(void)
 /* USER CODE END MX_GPIO_Init_1 */
 
   /* GPIO Ports Clock Enable */
-  __HAL_RCC_GPIOC_CLK_ENABLE();
+  __HAL_RCC_GPIOH_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
-  __HAL_RCC_GPIOB_CLK_ENABLE();
   __HAL_RCC_GPIOD_CLK_ENABLE();
 
-  /*Configure GPIO pin : PA0 */
-  GPIO_InitStruct.Pin = GPIO_PIN_0;
-  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING_FALLING;
-  GPIO_InitStruct.Pull = GPIO_PULLUP;
-  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(DHT11_GPIO_Port, DHT11_Pin, GPIO_PIN_SET);
+
+  /*Configure GPIO pin : DHT11_Pin */
+  GPIO_InitStruct.Pin = DHT11_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_OD;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(DHT11_GPIO_Port, &GPIO_InitStruct);
 
 /* USER CODE BEGIN MX_GPIO_Init_2 */
 /* USER CODE END MX_GPIO_Init_2 */
