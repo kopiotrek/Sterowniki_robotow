@@ -43,6 +43,7 @@
 TIM_HandleTypeDef htim1;
 TIM_HandleTypeDef htim2;
 
+UART_HandleTypeDef huart1;
 UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
@@ -55,6 +56,7 @@ static void MX_GPIO_Init(void);
 static void MX_USART2_UART_Init(void);
 static void MX_TIM1_Init(void);
 static void MX_TIM2_Init(void);
+static void MX_USART1_UART_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -175,6 +177,8 @@ uint8_t readDHT11(float* temperature, float* humidity)
 
     return DHT11_OK;
 }
+
+
 /* USER CODE END 0 */
 
 /**
@@ -207,11 +211,15 @@ int main(void)
   MX_USART2_UART_Init();
   MX_TIM1_Init();
   MX_TIM2_Init();
+  MX_USART1_UART_Init();
   /* USER CODE BEGIN 2 */
 
   uint8_t Test[] = "Hello World !!!\r\n"; //Data to send
-  HAL_UART_Transmit(&huart2,Test,sizeof(Test),10);// Sending in normal mode
+//  HAL_UART_Transmit(&huart2,Test,sizeof(Test),10);// Sending in normal mode
   HAL_TIM_Base_Start(&htim1);
+  float temperature, humidity;
+  int temperature_int, humidity_int;
+  ESP_Init("accespoint","12345678");
 //  HAL_Delay(1000);
   /* USER CODE END 2 */
 
@@ -219,47 +227,44 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-	  float temperature, humidity;
-  int temperature_int, humidity_int;
 
-  // Initialize the GPIO port for communication with the DHT11 sensor
-  // ...
-
-  while (1)
-  {
-// 	  temperature=5;
+//	  Server_Start();
+	  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_14, 1);
+	  HAL_Delay(1000);
+	  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_14, 0);
+	  HAL_Delay(1000);
       // Read data from the DHT11 sensor
-	  int read = readDHT11(&temperature, &humidity);
-      char buffer[20];
-      if (read == DHT11_OK) {
-   	   if (temperature>0 && humidity < 2147483600){
-              temperature_int=(int)temperature+9;
-              humidity_int=(int)humidity*100/255;
-              sprintf(buffer, "Temperature: %d, Humidity: %d\r\n", temperature_int, humidity_int);
-              HAL_UART_Transmit(&huart2, (uint8_t*)buffer, strlen(buffer), 10);
-   	   }
-       else{
-     	  sprintf(buffer, "OUT OF RANGE\r\n");
-     	  HAL_UART_Transmit(&huart2, (uint8_t*)buffer, strlen(buffer), 10);
-       }
-      }
-      if (read == DHT11_ERROR){
-    	  sprintf(buffer, "DHT11_ERROR\r\n");
-    	  HAL_UART_Transmit(&huart2, (uint8_t*)buffer, strlen(buffer), 10);
-      }
-      if (read == DHT11_TIMEOUT){
-    	  sprintf(buffer, "DHT11_TIMEOUT\r\n");
-    	  HAL_UART_Transmit(&huart2, (uint8_t*)buffer, strlen(buffer), 10);
-      }
-//      else{
-//    	  sprintf(buffer, "DUPA\r\n");
+//	  int read = readDHT11(&temperature, &humidity);
+//      char buffer[20];
+//      if (read == DHT11_OK) {
+//   	   if (temperature>0 && humidity < 2147483600){
+//              temperature_int=(int)temperature+9;
+//              humidity_int=(int)humidity*100/255;
+//              sprintf(buffer, "Temperature: %d, Humidity: %d\r\n", temperature_int, humidity_int);
+//              HAL_UART_Transmit(&huart2, (uint8_t*)buffer, strlen(buffer), 10);
+//   	   }
+//       else{
+//     	  sprintf(buffer, "OUT OF RANGE\r\n");
+//     	  HAL_UART_Transmit(&huart2, (uint8_t*)buffer, strlen(buffer), 10);
+//       }
+//      }
+//      if (read == DHT11_ERROR){
+//    	  sprintf(buffer, "DHT11_ERROR\r\n");
 //    	  HAL_UART_Transmit(&huart2, (uint8_t*)buffer, strlen(buffer), 10);
 //      }
+//      if (read == DHT11_TIMEOUT){
+//    	  sprintf(buffer, "DHT11_TIMEOUT\r\n");
+//    	  HAL_UART_Transmit(&huart2, (uint8_t*)buffer, strlen(buffer), 10);
+//      }
+////      else{
+////    	  sprintf(buffer, "DUPA\r\n");
+////    	  HAL_UART_Transmit(&huart2, (uint8_t*)buffer, strlen(buffer), 10);
+////      }
+//
+//
+//      // Wait for some time before reading the sensor again
+//          HAL_Delay(1000);
 
-
-      // Wait for some time before reading the sensor again
-          HAL_Delay(1000);
-  }
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -418,6 +423,41 @@ static void MX_TIM2_Init(void)
 }
 
 /**
+  * @brief USART1 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_USART1_UART_Init(void)
+{
+
+  /* USER CODE BEGIN USART1_Init 0 */
+
+  /* USER CODE END USART1_Init 0 */
+
+  /* USER CODE BEGIN USART1_Init 1 */
+
+  /* USER CODE END USART1_Init 1 */
+  huart1.Instance = USART1;
+  huart1.Init.BaudRate = 115200;
+  huart1.Init.WordLength = UART_WORDLENGTH_8B;
+  huart1.Init.StopBits = UART_STOPBITS_1;
+  huart1.Init.Parity = UART_PARITY_NONE;
+  huart1.Init.Mode = UART_MODE_TX_RX;
+  huart1.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+  huart1.Init.OverSampling = UART_OVERSAMPLING_16;
+  huart1.Init.OneBitSampling = UART_ONE_BIT_SAMPLE_DISABLE;
+  huart1.AdvancedInit.AdvFeatureInit = UART_ADVFEATURE_NO_INIT;
+  if (HAL_UART_Init(&huart1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN USART1_Init 2 */
+
+  /* USER CODE END USART1_Init 2 */
+
+}
+
+/**
   * @brief USART2 Initialization Function
   * @param None
   * @retval None
@@ -466,10 +506,14 @@ static void MX_GPIO_Init(void)
   /* GPIO Ports Clock Enable */
   __HAL_RCC_GPIOH_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
+  __HAL_RCC_GPIOB_CLK_ENABLE();
   __HAL_RCC_GPIOD_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(DHT11_GPIO_Port, DHT11_Pin, GPIO_PIN_SET);
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_14, GPIO_PIN_RESET);
 
   /*Configure GPIO pin : DHT11_Pin */
   GPIO_InitStruct.Pin = DHT11_Pin;
@@ -477,6 +521,13 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(DHT11_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : PB14 */
+  GPIO_InitStruct.Pin = GPIO_PIN_14;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
 /* USER CODE BEGIN MX_GPIO_Init_2 */
 /* USER CODE END MX_GPIO_Init_2 */
