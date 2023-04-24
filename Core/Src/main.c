@@ -87,124 +87,14 @@ uint16_t getTIM1()
 
 
 
+void DHT11_interface(float *temperature, float *humidity){
 
-HAL_StatusTypeDef wire_reset(void)
-{
-  int rc;
-
-  HAL_GPIO_WritePin(DHT11_PORT, DHT11_PIN, GPIO_PIN_RESET);
-  HAL_Delay(18);
-  HAL_GPIO_WritePin(DHT11_PORT, DHT11_PIN, GPIO_PIN_SET);
-  HAL_Delay(18);
-  rc = HAL_GPIO_ReadPin(DHT11_PORT, DHT11_PIN);
-  delay_us(410);
-
-  if (rc == 0)
-    return HAL_OK;
-  else
-    return HAL_ERROR;
-}
-
-int readDHT11(float* temperature, float* humidity)
-{
-    uint8_t data[5] = {0, 0, 0, 0, 0};
-    uint8_t crc = 0;
-    uint8_t tim;
-
-
-    // Request data from the DHT11 sensor
-    HAL_GPIO_WritePin(DHT11_PORT, DHT11_PIN, GPIO_PIN_RESET);
-    HAL_Delay(20); // correct: 18 ms
-    HAL_GPIO_WritePin(DHT11_PORT, DHT11_PIN, GPIO_PIN_SET);
-
-    // Wait for the DHT11 sensor to respond
-    resetTIM1();
-    while (HAL_GPIO_ReadPin(DHT11_PORT, DHT11_PIN))
-    {
-        if (getTIM1() > 100) return DHT11_TIMEOUT;
-    }
-    resetTIM1();
-    while (!HAL_GPIO_ReadPin(DHT11_PORT, DHT11_PIN))
-    {
-    	if (getTIM1() > 100) return DHT11_TIMEOUT;
-    }
-    delay_us(40);
-    for (int i = 0; i < 5; i++)
-    {
-        for (int j = 0; j < 8; j++)
-        {
-        	while ((HAL_GPIO_ReadPin (DHT11_PORT, DHT11_PIN))) if (getTIM1() > 1000) return DHT11_TIMEOUT;
-    		while (!(HAL_GPIO_ReadPin (DHT11_PORT, DHT11_PIN))) if (getTIM1() > 1000) return DHT11_TIMEOUT;   // wait for the pin to go high
-    		delay_us(40);   // wait for 40 us
-    		if (!(HAL_GPIO_ReadPin (DHT11_PORT, DHT11_PIN)))   // if the pin is low
-    		{
-    			data[i] &= ~(1<<(7-j));  // write 0
-    		}
-    		else data[i] |= 1 << (7 - j);  // if the pin is high, write 1
-//    		while ((HAL_GPIO_ReadPin (DHT11_PORT, DHT11_PIN))) if (getTIM1() > 1000) return DHT11_TIMEOUT;;  // wait for the pin to go low
-
-
-
-//            // Wait for a low signal before reading the bit
-//        	resetTIM1();
-//            while (HAL_GPIO_ReadPin(DHT11_PORT, DHT11_PIN))
-//            {
-//            	if (getTIM1() > 150)
-//            		return DHT11_TIMEOUT;
-//            }
-//            resetTIM1();
-//            // Wait for a high signal to start reading the bit
-//            while (!HAL_GPIO_ReadPin(DHT11_PORT, DHT11_PIN))
-//            {
-//            	if (getTIM1() > 70)
-//            		return DHT11_TIMEOUT;
-//            }
-//
-//            // Wait for a low signal to finish reading the bit
-//            while (HAL_GPIO_ReadPin(DHT11_PORT, DHT11_PIN))
-//            {
-//            	if (getTIM1() > 200)
-//            		return DHT11_TIMEOUT;
-//            }
-//            tim = getTIM1();
-//            // Read the bit
-//            if (tim > 110)
-//            {
-//                data[i] |= 1 << (7 - j);
-//            }
-//            else if (tim < 90){
-//            	data[i] &= ~(1<<(7-j));
-//            }
-        }
-    }
-
-    // Verify the checksum
-    crc = data[0] + data[1] + data[2] + data[3];
-
-//    if (crc != data[4]) return DHT11_ERROR;
-    if (data[4] == ((data[0] + data[1] + data[2] + data[3]) & 0xFF)) return DHT11_ERROR;
-//    uint8_t n = data[0]+data[2];
-//    if ((n ^ 1) != (n + 1))
-//           return DHT11_ERROR;
-
-    // Calculate the temperature and humidity values
-    *humidity = data[0] + data[1] * 0.1f;
-    *temperature = data[2] + (data[3] & 0x0f) * 0.1;;
-
-    return DHT11_OK;
-}
-
-void DHT11_interface(int *temperature_int, int *humidity_int){
-	double NAN = 0.0/0.0;
-	  	  float temperature = NAN, humidity = NAN;
 	      // Read data from the DHT11 sensor
 		  int read = dht11_read_data(&temperature, &humidity);
-	      char buffer[50];
+	      char buffer[60];
 	      if (read == DHT11_OK) {
-	   	   if (temperature>0 && humidity < 2147483600){
-	              *temperature_int=(int)temperature;
-	              *humidity_int=(int)humidity*100/255;
-	              sprintf(buffer, "Temperature: %4.1f, Humidity: %4.1f\r\n", temperature+8, humidity*100/255);
+	   	   if (*temperature>0 && *humidity < 2147483600){
+	              sprintf(buffer, "Temperature: %4.1f, Humidity: %4.1f\r\n", *temperature+8, *humidity*100/255);
 //	              sprintf(buffer, "Temperature: %d, Humidity: %d\r\n", *temperature_int, *humidity_int);
 	              HAL_UART_Transmit(&huart2, (uint8_t*)buffer, strlen(buffer), 10);
 	   	   }
@@ -234,21 +124,6 @@ void DHT11_interface(int *temperature_int, int *humidity_int){
 
 
 void dht11_request() {
-    // set DHT11_PIN as output
-//    GPIO_InitTypeDef GPIO_InitStruct = {0};
-//    GPIO_InitStruct.Pin = DHT11_PIN;
-//    GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-//    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
-//    HAL_GPIO_Init(DHT11_PORT, &GPIO_InitStruct);
-
-//    // send start signal
-//    HAL_GPIO_WritePin(DHT11_PORT, DHT11_PIN, GPIO_PIN_RESET);
-//    delay_us(18);
-//
-//    // send request signal
-//    HAL_GPIO_WritePin(DHT11_PORT, DHT11_PIN, GPIO_PIN_SET);
-//    delay_us(40);
-
     	HAL_GPIO_WritePin(DHT11_PORT, DHT11_PIN, GPIO_PIN_RESET);
         HAL_Delay(20); // correct: 18 ms
         HAL_GPIO_WritePin(DHT11_PORT, DHT11_PIN, GPIO_PIN_SET);
@@ -266,9 +141,6 @@ void dht11_request() {
         }
         delay_us(40);
 
-    // set DHT11_PIN as input
-//    GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-//    HAL_GPIO_Init(DHT11_PORT, &GPIO_InitStruct);
 }
 
 void dht11_read_byte(uint8_t *byte) {
@@ -286,39 +158,6 @@ void dht11_read_byte(uint8_t *byte) {
 		while ((HAL_GPIO_ReadPin (DHT11_PORT, DHT11_PIN)));  // wait for the pin to go low
 
 	}
-//	return i;
-
-//	uint8_t high_ticks = 0;
-//    for (int i = 0; i < 8; i++) {
-//        // wait for a falling edge
-//        while (HAL_GPIO_ReadPin(DHT11_PORT, DHT11_PIN));// if (getTIM1() > DHT11_TIMEOUT) return DHT11_TIMEOUT;
-//        // measure the duration of the high signal
-//
-//
-//        high_ticks=0;
-//        while (!HAL_GPIO_ReadPin(DHT11_PORT, DHT11_PIN)) {
-//            high_ticks++;
-//            delay_us(1);
-//            if (high_ticks > 200) return DHT11_TIMEOUT;
-//        }
-////        delay_us(40);
-////        while (HAL_GPIO_ReadPin(DHT11_PORT, DHT11_PIN)) if (getTIM1() > DHT11_TIMEOUT) return DHT11_TIMEOUT;
-//        // if the high signal lasts longer than 50us, it's a 1 bit
-////        timer = getTIM1();
-//        *byte <<= 1;
-//        if (high_ticks>30) {
-//            *byte |= 1;
-//        }
-////        else {
-////        	*byte &= ~1;
-////        }
-////        if (timer > 50) {
-////            *byte |= 1;
-////        }
-////        else if (timer < 50) {
-////        	*byte &= 0;
-////        }
-//    }
 }
 
 int dht11_read_data(float* temperature, float* humidity) {
@@ -328,9 +167,6 @@ int dht11_read_data(float* temperature, float* humidity) {
     dht11_request();
 
     // wait for the response
-//    while (HAL_GPIO_ReadPin(DHT11_PORT, DHT11_PIN) == GPIO_PIN_SET) if (getTIM1() > DHT11_TIMEOUT) return DHT11_TIMEOUT;
-//    while (HAL_GPIO_ReadPin(DHT11_PORT, DHT11_PIN)) if (getTIM1() > DHT11_TIMEOUT) return DHT11_TIMEOUT;
-//    while (!HAL_GPIO_ReadPin(DHT11_PORT, DHT11_PIN)) if (getTIM1() > DHT11_TIMEOUT) return DHT11_TIMEOUT;
 
     // read the data
     for (int i = 0; i < 5; i++) {
@@ -387,7 +223,7 @@ int main(void)
 //  HAL_UART_Transmit(&huart2,Test,sizeof(Test),10);// Sending in normal mode
   HAL_TIM_Base_Start(&htim1);
 //  ESP_Init("Wiezienna_30_22","Ja_to_nie_doktor_Dolittle");
-  int temperature_int, humidity_int;
+
 
   /* USER CODE END 2 */
 
@@ -395,13 +231,9 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-	  float humidity, temperature;
-//	    dht11_read_data(&humidity, &temperature);
-	  DHT11_interface(&temperature_int, &humidity_int);
-//      char buffer[50];
-//      sprintf(buffer, " main: Temperature: %d, Humidity: %d\r\n", temperature_int, humidity_int);
-//      HAL_UART_Transmit(&huart2, (uint8_t*)buffer, strlen(buffer), 10);
-//	  Server_Start();
+	  float temperature, humidity;
+	  DHT11_interface(&temperature, &humidity);
+//	  Server_Start(&temperature, &humidity);
 
 
     /* USER CODE END WHILE */
