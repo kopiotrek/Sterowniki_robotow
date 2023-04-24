@@ -142,6 +142,7 @@ int Server_Send (char *str, int Link_ID)
 	return 1;
 }
 
+// Zacina się po naciśnięciu przycisku
 void Server_Handle (char *str, int Link_ID, float *temperature, float *humidity)
 {
 char datatosend[1024] = {0};

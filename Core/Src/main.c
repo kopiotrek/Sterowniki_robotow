@@ -223,6 +223,7 @@ int main(void)
 //  HAL_UART_Transmit(&huart2,Test,sizeof(Test),10);// Sending in normal mode
   HAL_TIM_Base_Start(&htim1);
 //  ESP_Init("Wiezienna_30_22","Ja_to_nie_doktor_Dolittle");
+    ESP_Init("accespoint","12345678");
 
 
   /* USER CODE END 2 */
@@ -231,9 +232,9 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-	  float temperature, humidity;
-	  DHT11_interface(&temperature, &humidity);
-//	  Server_Start(&temperature, &humidity);
+	  float temperature = 88, humidity = 88;
+//	  DHT11_interface(&temperature, &humidity);
+	  Server_Start(&temperature, &humidity);
 
 
     /* USER CODE END WHILE */
