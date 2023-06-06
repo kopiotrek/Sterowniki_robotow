@@ -21,7 +21,6 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -190,11 +189,13 @@ void DHT11_interface(float* temperature, float* humidity){
 void mode_handle(float* temperature, float* humidity, int* mode)
 {
     char buffer[60];
-    if (*mode == 0){
+    if (*mode == 1){
     	sprintf(buffer, "Manual mode\r\n");
+    	HAL_UART_Transmit(&huart2, (uint8_t*)buffer, strlen(buffer), 10);
     }
     else{
     	sprintf(buffer, "Auto mode\r\n");
+    	HAL_UART_Transmit(&huart2, (uint8_t*)buffer, strlen(buffer), 10);
     }
 }
 
@@ -202,6 +203,78 @@ void correct_data(float* temperature, float* humidity){
 	*temperature+=8;
 	*humidity=*humidity*100/255;
 }
+
+void simulate_data(float* temperature, float* humidity){
+	if(*temperature>17 && *temperature<36)
+		*temperature+=2;
+	else
+		*temperature=18;
+	char buffer[100];
+    sprintf(buffer, "Temperature: %4.1f, Humidity: %4.1f\r\n", *temperature+8, *humidity*100/255);
+    HAL_UART_Transmit(&huart2, (uint8_t*)buffer, strlen(buffer), 10);
+
+//	*humidity=*humidity*100/255;
+}
+
+void generate_PWM(float* temperature, float* humidity, float *PWM) {
+
+    char buffer[100];
+  // Define the maximum and minimum duty cycle values
+  uint32_t maxDutyCycle = htim2.Init.Period; // 100% duty cycle
+  uint32_t minDutyCycle = 0; // 0% duty cycle
+  uint32_t dutyCycleTemp;
+  uint32_t dutyCycleHumid;
+  uint32_t dutyCycle;
+
+  // Define the target temperatures for the transition
+  float startTemperature = 18.0;
+  float endTemperature = 29.5;
+  float startHumidity = 70.0;
+  float endHumidity = 90.0;
+
+  float temperatureRange;
+  float temperatureRangePercentage;
+  float humidityRange;
+  float humidityRangePercentage;
+  // Check if the temperature is within the range to trigger the transition
+  if (*temperature >= startTemperature && *temperature <= endTemperature) {
+    // Calculate the current temperature range as a percentage
+    temperatureRange = *temperature - startTemperature;
+    temperatureRangePercentage = temperatureRange / (endTemperature - startTemperature);
+//	sprintf(buffer, "dutyCycleTemp=%d\r\n",dutyCycleTemp);
+//	HAL_UART_Transmit(&huart2, (uint8_t*)buffer, strlen(buffer), 10);
+
+
+  }
+  if (*humidity >= startHumidity && *humidity <= endHumidity) {
+    // Calculate the current temperature range as a percentage
+	humidityRange = *humidity - startHumidity;
+    humidityRangePercentage = humidityRange / (endHumidity - startHumidity);
+//	sprintf(buffer, "dutyCycleHumid=%d\r\n",dutyCycleHumid);
+//	HAL_UART_Transmit(&huart2, (uint8_t*)buffer, strlen(buffer), 10);
+  }
+
+
+
+  // Update the duty cycle value
+  if (temperatureRangePercentage>humidityRangePercentage){
+	  dutyCycle = minDutyCycle + (temperatureRangePercentage * (maxDutyCycle - minDutyCycle));
+	  *PWM = temperatureRangePercentage;
+  }
+  else{
+	  dutyCycle = minDutyCycle + (humidityRangePercentage * (maxDutyCycle - minDutyCycle));
+  	  *PWM = humidityRangePercentage;
+  }
+  htim2.Instance->CCR1 = dutyCycle;
+
+
+	sprintf(buffer, "PWM=%4.1f\r\n",*PWM);
+	HAL_UART_Transmit(&huart2, (uint8_t*)buffer, strlen(buffer), 10);
+}
+
+
+
+
 
 
 /* USER CODE END 0 */
@@ -239,27 +312,39 @@ int main(void)
   MX_USART1_UART_Init();
   /* USER CODE BEGIN 2 */
 
+  // Start the PWM output on TIM2 Channel 1
+  HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_1);
+
+
 //  uint8_t Test[] = "Hello World !!!\r\n"; //Data to send
 //  HAL_UART_Transmit(&huart2,Test,sizeof(Test),10);// Sending in normal mode
   HAL_TIM_Base_Start(&htim1);
   ESP_Init("Wiezienna_30_22","Ja_to_nie_doktor_Dolittle");
 //  ESP_Init("accespoint","12345678");
 
-  int mode = 0; //0 for manual, 1 for automatic
+
+  int mode = 0; //1 for manual, 0 for automatic
+  float PWM = 0;
 
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
+  float temperature = 21, humidity = 50;
   while (1)
   {
-	  float temperature = 69, humidity = 69;
+
+	  Server_Start(&temperature, &humidity, &mode, &PWM);
 	  DHT11_interface(&temperature, &humidity);
-
 	  correct_data(&temperature, &humidity);
-
-	  Server_Start(&temperature, &humidity, &mode);
-	  mode_handle(&temperature, &humidity, &mode);
+//	  simulate_data(&temperature, &humidity);
+	  if (mode == 1){
+		  PWM = 1;
+		  htim2.Instance->CCR1 = htim2.Init.Period;
+	  }
+	  else
+		  generate_PWM(&temperature, &humidity, &PWM);
+//	  HAL_Delay(2000);
 
 
     /* USER CODE END WHILE */

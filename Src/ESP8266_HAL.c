@@ -19,11 +19,11 @@ extern UART_HandleTypeDef huart2;
 #define LED_PIN GPIO_PIN_2
 
 
-char buffer[50];
+char buffer[200];
 
 char *Basic_inclusion = "<!DOCTYPE html> <html>\n<head><meta name=\"viewport\"\
 		content=\"width=device-width, initial-scale=1.0, user-scalable=no\">\n\
-		<title>LED CONTROL</title>\n<style>html { font-family: Helvetica; \
+		<title>FAN CONTROL</title>\n<style>html { font-family: Helvetica; \
 		display: inline-block; margin: 0px auto; text-align: center;}\n\
 		body{margin-top: 50px;} h1 {color: #444444;margin: 50px auto 30px;}\
 		h3 {color: #444444;margin-bottom: 50px;}\n.button {display: block;\
@@ -33,12 +33,19 @@ char *Basic_inclusion = "<!DOCTYPE html> <html>\n<head><meta name=\"viewport\"\
 		.button-on {background-color: #1abc9c;}\n.button-on:active \
 		{background-color: #16a085;}\n.button-off {background-color: #34495e;}\n\
 		.button-off:active {background-color: #2c3e50;}\np {font-size: 14px;color: #888;margin-bottom: 10px;}\n\
-		</style>\n</head>\n<body>\n<h1>ESP8266 LED CONTROL</h1>\n\
-        <p>Temperature: %0.2f &deg;C</p>\n<p>Humidity: %0.2f %%</p>";
+		</style>\n</head>\n<body>\n<h1>ESP8266 FAN CONTROL</h1>\n\
+        <p>Temperature: %0.2f &deg;C</p>\n<p>Humidity: %0.2f %%\n<p>PWM: %0.2f %%</p></p></p>\
+        <script>\
+        setInterval(function() {\
+            location.reload();\
+        }, 5	000);\
+        </script>";
 
 //
-char *LED_ON = "<p>LED Status: ON</p><a class=\"button button-off\" href=\"/ledoff\">OFF</a>";
-char *LED_OFF = "<p>LED1 Status: OFF</p><a class=\"button button-on\" href=\"/ledon\">ON</a>";
+char *LED_ON = "<p>Manual Override Status: ON</p><a class=\"button button-off\" href=\"/ledoff\">OFF</a>";
+char *LED_OFF = "<p>Manual Override Status: OFF</p><a class=\"button button-on\" href=\"/ledon\">ON</a>";
+//char *LED_ON = "<p>LED Status: ON</p><a class=\"button button-off\" href=\"/ledoff\">OFF</a>";
+//char *LED_OFF = "<p>LED1 Status: OFF</p><a class=\"button button-on\" href=\"/ledon\">ON</a>";
 char *Terminate = "</body></html>";
 
 
@@ -116,7 +123,7 @@ void ESP_Init (char *SSID, char *PASSWD)
 int Server_Send (char *str, int Link_ID)
 {
 	int len = strlen (str);
-	char data[80];
+	char data[140];
 	sprintf (data, "AT+CIPSEND=%d,%d\r\n", Link_ID, len);
 	Uart_sendstring(data, wifi_uart);
 	while (!(Wait_for(">", wifi_uart)));
@@ -128,12 +135,12 @@ int Server_Send (char *str, int Link_ID)
 	return 1;
 }
 
-void Server_Handle (char *str, int Link_ID)
+void Server_Handle (char *str, int Link_ID, float* temperature, float* humidity, float* PWM)
 {
-	char datatosend[1024] = {0};
+	char datatosend[2500] = {0};
 	if (!(strcmp (str, "/ledon")))
 	{
-		sprintf (datatosend, Basic_inclusion);
+		sprintf (datatosend, Basic_inclusion, *temperature, *humidity, *PWM*100);
 		strcat(datatosend, LED_ON);
 		strcat(datatosend, Terminate);
 		Server_Send(datatosend, Link_ID);
@@ -141,7 +148,7 @@ void Server_Handle (char *str, int Link_ID)
 
 	else if (!(strcmp (str, "/ledoff")))
 	{
-		sprintf (datatosend, Basic_inclusion);
+		sprintf (datatosend, Basic_inclusion, *temperature, *humidity, *PWM*100);
 		strcat(datatosend, LED_OFF);
 		strcat(datatosend, Terminate);
 		Server_Send(datatosend, Link_ID);
@@ -149,16 +156,15 @@ void Server_Handle (char *str, int Link_ID)
 
 	else
 	{
-		sprintf (datatosend, Basic_inclusion);
+		sprintf (datatosend, Basic_inclusion, *temperature, *humidity, *PWM*100);
 		strcat(datatosend, LED_OFF);
 		strcat(datatosend, Terminate);
 		Server_Send(datatosend, Link_ID);
 	}
-
 }
 
 
-void Server_Start (float* temperature, float* humidity, int* mode)
+void Server_Start (float* temperature, float* humidity, int* mode, float *PWM)
 {
 	char buftocopyinto[64] = {0};
 	char Link_ID;
@@ -167,79 +173,26 @@ void Server_Start (float* temperature, float* humidity, int* mode)
 	while (!(Copy_upto(" HTTP/1.1", buftocopyinto, wifi_uart)));
 	if (Look_for("/ledon", buftocopyinto) == 1)
 	{
+		*mode = 1;
 		HAL_GPIO_WritePin(GPIOB, LED_PIN, 1);
-		Server_Handle("/ledon", Link_ID);
+		Server_Handle("/ledon", Link_ID, temperature, humidity, PWM);
 	}
 	else if (Look_for("/ledoff", buftocopyinto) == 1)
 	{
+		*mode = 0;
 		HAL_GPIO_WritePin(GPIOB, LED_PIN, 0);
-		Server_Handle("/ledoff", Link_ID);
+		Server_Handle("/ledoff", Link_ID, temperature, humidity, PWM);
 	}
 	else if (Look_for("/favicon.ico", buftocopyinto) == 1);
 	else
 	{
 		HAL_GPIO_WritePin(GPIOB, LED_PIN, 0);
-		char response[2048];
-		sprintf(response, Basic_inclusion, *temperature, *humidity);
+		char response[3000];
+		sprintf(response, Basic_inclusion, *temperature, *humidity, *PWM*100);
 		strcat(response, LED_OFF);
 		strcat(response, Terminate);
 		Server_Send(response, Link_ID);
 	}
 }
 
-//
-//void Server_Start (float* temperature, float* humidity, int* mode)
-//{
-//	char buftocopyinto[64] = {0};
-//	char Link_ID;
-//	while (!(Get_after("+IPD,", 1, &Link_ID, wifi_uart)));
-//	Link_ID -= 48;
-//	while (!(Copy_upto(" HTTP/1.1", buftocopyinto, wifi_uart)));
-//	if (Look_for("/ledon", buftocopyinto) == 1)
-//	{
-//		HAL_GPIO_WritePin(GPIOB, LED_PIN, 1);
-//		Server_Handle("/ledon",Link_ID);
-//	}
-//
-//	else if (Look_for("/ledoff", buftocopyinto) == 1)
-//	{
-//		HAL_GPIO_WritePin(GPIOB, LED_PIN, 0);
-//		Server_Handle("/ledoff",Link_ID);
-//	}
-//
-//	else if (Look_for("/favicon.ico", buftocopyinto) == 1);
-//
-//	else
-//	{
-//		HAL_GPIO_WritePin(GPIOB, LED_PIN, 0);
-//		Server_Handle("/ ", Link_ID);
-//	}
-//}
 
-//void Server_Start  (float *temperature, float *humidity)
-//{
-//	char buftocopyinto[64] = {0};
-//	char Link_ID;
-//	while (!(Get_after("+IPD,", 1, &Link_ID, wifi_uart)));
-//	Link_ID -= 48;
-//	while (!(Copy_upto(" HTTP/1.1", buftocopyinto, wifi_uart)));
-//	if (Look_for("/ledon", buftocopyinto) == 1)
-//	{
-//		HAL_GPIO_WritePin(GPIOB, GPIO_PIN_2, 1);
-//		Server_Handle("/ledon",Link_ID, &temperature, &humidity);
-//	}
-//
-//	else if (Look_for("/ledoff", buftocopyinto) == 1)
-//	{
-//		HAL_GPIO_WritePin(GPIOB, GPIO_PIN_2, 0);
-//		Server_Handle("/ledoff",Link_ID, &temperature, &humidity);
-//	}
-//
-//	else if (Look_for("/favicon.ico", buftocopyinto) == 1);
-//
-//	else
-//	{
-//		HAL_GPIO_WritePin(GPIOB, GPIO_PIN_2, 0);
-//		Server_Handle("/ ", Link_ID, &temperature, &humidity);
-//	}
-//}
